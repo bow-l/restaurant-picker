@@ -150,6 +150,14 @@ function pick() {
   document.getElementById("result").textContent = "🎉 " + winner.name;
 }
 
+// ========== 5. 实时同步 ==========
+// 订阅 restaurants 表的变化：任何人增/删/改，云端都会"按门铃"通知我们
+db.channel("restaurants-changes")
+  .on("postgres_changes",
+      { event: "*", schema: "public", table: "restaurants" },
+      () => { loadRestaurants(); })  // 一收到通知就重新拉数据
+  .subscribe();
+
 // 页面打开时，从云端拉数据
 loadRestaurants();
 </script>

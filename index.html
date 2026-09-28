@@ -1,129 +1,157 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>今天吃什么</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; padding-top: 50px; background: #faf7f0; max-width: 600px; margin: 0 auto; }
-    #result { font-size: 42px; margin: 30px 0; min-height: 60px; color: #d9480f; }
-    button { font-size: 18px; padding: 12px 36px; border: none; border-radius: 999px; background: #d9480f; color: white; cursor: pointer; }
-    input, select { font-size: 18px; padding: 12px; border-radius: 12px; border: 1px solid #ccc; }
-    input { width: 200px; }
-    ul { list-style: none; padding: 0; }
-    li { background: white; margin: 8px 0; padding: 12px; border-radius: 12px; font-size: 18px; }
-    li button { font-size: 15px; padding: 6px 14px; background: #f1f3f5; color: #333; margin-left: 6px; }
-    h2 { margin-top: 50px; }
-    .row { margin: 14px 0; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>今天吃什么</title>
+<!-- 引入 Supabase 官方写好的客户端库，省得我们自己写网络请求 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  body { font-family: sans-serif; max-width: 500px; margin: 40px auto; text-align: center; }
+  #result { font-size: 28px; margin: 30px 0; min-height: 40px; }
+  button { font-size: 18px; padding: 12px 24px; cursor: pointer; }
+  li { margin: 8px 0; }
+  li button { font-size: 14px; padding: 4px 10px; margin-left: 6px; }
+  input, select { font-size: 16px; padding: 8px; margin: 4px; }
+</style>
 </head>
 <body>
-  <h1>🍲 今天吃什么？</h1>
 
-  <div class="row">
-    只想吃：
-    <select id="tagFilter" onchange="renderList()">
-      <option>全部</option>
-      <option>川菜</option>
-      <option>火锅</option>
-      <option>烧烤</option>
-      <option>日料</option>
-      <option>面食</option>
-      <option>麻辣烫</option>
-    </select>
-  </div>
+<h1>今天吃什么</h1>
 
-  <div id="result">点下面的按钮，让命运决定</div>
-  <button onclick="pick()">随机选一家</button>
+<p>
+  只想吃：
+  <select id="filter" onchange="renderList()">
+    <option value="全部">全部</option>
+    <option value="川菜">川菜</option>
+    <option value="火锅">火锅</option>
+    <option value="烧烤">烧烤</option>
+    <option value="西北菜">西北菜</option>
+    <option value="日料">日料</option>
+  </select>
+</p>
 
-  <h2>📝 餐厅池子</h2>
-  <div class="row">
-    <input id="newName" placeholder="输入餐厅名字">
-    <select id="newTag">
-      <option>川菜</option>
-      <option>火锅</option>
-      <option>烧烤</option>
-      <option>日料</option>
-      <option>面食</option>
-      <option>麻辣烫</option>
-    </select>
-    <button onclick="add()">添加</button>
-  </div>
-  <ul id="list"></ul>
+<div id="result">点下面的按钮，让命运决定</div>
+<button onclick="pick()">🎲 随机选一家</button>
 
-  <script>
-    // 默认池子：只在第一次打开时用
-    const defaultRestaurants = [
-      { name: "老四川", tag: "川菜", up: 0, down: 0 },
-      { name: "海底捞", tag: "火锅", up: 0, down: 0 },
-      { name: "张亮麻辣烫", tag: "麻辣烫", up: 0, down: 0 },
-      { name: "兰州拉面", tag: "面食", up: 0, down: 0 },
-      { name: "寿司郎", tag: "日料", up: 0, down: 0 },
-      { name: "汉阳烧烤", tag: "烧烤", up: 0, down: 0 },
-      { name: "熊猫火锅", tag: "火锅", up: 0, down: 0 },
-    ];
+<h2>📝 餐厅池子</h2>
+<input id="newName" placeholder="输入餐厅名">
+<select id="newTag">
+  <option value="川菜">川菜</option>
+  <option value="火锅">火锅</option>
+  <option value="烧烤">烧烤</option>
+  <option value="西北菜">西北菜</option>
+  <option value="日料">日料</option>
+</select>
+<button onclick="add()">加入池子</button>
+<ul id="list" style="text-align: left;"></ul>
 
-    // 页面一加载：先去小仓库里找有没有存过的
-    let restaurants;
-    const saved = localStorage.getItem("myRestaurants");
-    if (saved) {
-      restaurants = JSON.parse(saved); // 字符串 → 还原成数组
-    } else {
-      restaurants = defaultRestaurants;
+<script>
+// ========== 1. 连上云数据库 ==========
+const SUPABASE_URL = "https://mdpigsmldilcyhaabbjq.supabase.co";
+const SUPABASE_KEY = "sb_publishable_nbkvuokgofRcv4vKkVlGNw_QNBwj12e";
+
+// db 就是我们跟云数据库对话的"话筒"
+// supabase 这个变量是上面 <head> 里那行 CDN script 带来的
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ========== 2. 数据 ==========
+// 默认数据：第一次打开时，如果云端是空的，就把这几家种进去
+const defaultRestaurants = [
+  { name: "老四川", tag: "川菜" },
+  { name: "海底捞", tag: "火锅" },
+  { name: "张亮麻辣烫", tag: "川菜" },
+  { name: "兰州拉面", tag: "西北菜" },
+  { name: "寿司郎", tag: "日料" },
+  { name: "汉阳烧烤", tag: "烧烤" }
+];
+
+let restaurants = [];  // 内存里的数据，永远是从云端拉下来的最新版
+
+// 从云端拉数据
+async function loadRestaurants() {
+  // from("restaurants")=去这张表，select("*")=所有列都拿来
+  const { data, error } = await db.from("restaurants").select("*").order("created_at");
+
+  if (error) {
+    document.getElementById("result").textContent = "连不上数据库：" + error.message;
+    return;
+  }
+
+  // 云端是空的（第一次用）→ 种入默认数据 → 再拉一次
+  if (data.length === 0) {
+    await db.from("restaurants").insert(defaultRestaurants);
+    return loadRestaurants();
+  }
+
+  restaurants = data;
+  renderList();
+}
+
+// 加一家店：先写进云端，再重新拉
+async function add() {
+  const name = document.getElementById("newName").value.trim();
+  const tag = document.getElementById("newTag").value;
+
+  if (name === "") return;
+
+  await db.from("restaurants").insert([{ name: name, tag: tag }]);
+  document.getElementById("newName").value = "";
+  loadRestaurants();
+}
+
+// 投票：id 是这家店在云端的唯一编号，dir 是 1（赞成）或 -1（反对）
+async function vote(id, dir) {
+  // 在内存里找出 id 对得上的那家店（x 代表数组里的每一项）
+  const r = restaurants.find(x => x.id === id);
+
+  if (dir === 1) {
+    // update=改数据，eq("id", id)=只改 id 对得上的那一行
+    await db.from("restaurants").update({ up: r.up + 1 }).eq("id", id);
+  } else {
+    await db.from("restaurants").update({ down: r.down + 1 }).eq("id", id);
+  }
+  loadRestaurants();
+}
+
+// ========== 3. 画界面（跟以前一样，只是投票按钮传的是 id） ==========
+function renderList() {
+  const filter = document.getElementById("filter").value;
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  for (let i = 0; i < restaurants.length; i++) {
+    const r = restaurants[i];
+    if (filter !== "全部" && r.tag !== filter) continue;
+
+    const li = document.createElement("li");
+    // id 是字符串，onclick 里要加引号：vote('abc-123', 1)
+    li.innerHTML = r.name + "（" + r.tag + "） " +
+      "<button onclick=\"vote('" + r.id + "', 1)\">👍 " + r.up + "</button> " +
+      "<button onclick=\"vote('" + r.id + "', -1)\">👎 " + r.down + "</button>";
+    list.appendChild(li);
+  }
+}
+
+// ========== 4. 转盘（跟以前一模一样） ==========
+function pick() {
+  const filter = document.getElementById("filter").value;
+  const pool = [];
+  for (let i = 0; i < restaurants.length; i++) {
+    if (filter === "全部" || restaurants[i].tag === filter) {
+      pool.push(restaurants[i]);
     }
+  }
+  if (pool.length === 0) {
+    document.getElementById("result").textContent = "这个分类还没有餐厅，快去加一家！";
+    return;
+  }
+  const winner = pool[Math.floor(Math.random() * pool.length)];
+  document.getElementById("result").textContent = "🎉 " + winner.name;
+}
 
-    // 把当前池子存进小仓库
-    function save() {
-      localStorage.setItem("myRestaurants", JSON.stringify(restaurants));
-    }
-
-    function renderList() {
-      const tag = document.getElementById("tagFilter").value;
-      const ul = document.getElementById("list");
-      ul.innerHTML = "";
-      for (let i = 0; i < restaurants.length; i++) {
-        const r = restaurants[i];
-        if (tag !== "全部" && r.tag !== tag) continue;
-        const li = document.createElement("li");
-        li.innerHTML = `${r.name}（${r.tag}）
-          <button onclick="vote(${i}, 1)">👍 ${r.up}</button>
-          <button onclick="vote(${i}, -1)">👎 ${r.down}</button>`;
-        ul.appendChild(li);
-      }
-    }
-
-    function vote(i, dir) {
-      if (dir === 1) restaurants[i].up++;
-      else restaurants[i].down++;
-      save();       // 数据变了，先存起来
-      renderList(); // 再重画界面
-    }
-
-    function add() {
-      const name = document.getElementById("newName").value.trim();
-      const tag = document.getElementById("newTag").value;
-      if (name === "") return;
-      restaurants.push({ name: name, tag: tag, up: 0, down: 0 });
-      document.getElementById("newName").value = "";
-      save();
-      renderList();
-    }
-
-    function pick() {
-      const tag = document.getElementById("tagFilter").value;
-      const pool = [];
-      for (const r of restaurants) {
-        if (tag === "全部" || r.tag === tag) pool.push(r);
-      }
-      if (pool.length === 0) {
-        document.getElementById("result").textContent = "这个菜系还没有餐厅，快去添加！";
-        return;
-      }
-      const index = Math.floor(Math.random() * pool.length);
-      document.getElementById("result").textContent = "就吃：" + pool[index].name + "！";
-    }
-
-    renderList();
-  </script>
+// 页面打开时，从云端拉数据
+loadRestaurants();
+</script>
 </body>
 </html>

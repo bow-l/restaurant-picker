@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>今天吃什么</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding-top: 50px; background: #faf7f0; max-width: 600px; margin: 0 auto; }
+    #result { font-size: 42px; margin: 30px 0; min-height: 60px; color: #d9480f; }
+    button { font-size: 18px; padding: 12px 36px; border: none; border-radius: 999px; background: #d9480f; color: white; cursor: pointer; }
+    input, select { font-size: 18px; padding: 12px; border-radius: 12px; border: 1px solid #ccc; }
+    input { width: 200px; }
+    ul { list-style: none; padding: 0; }
+    li { background: white; margin: 8px 0; padding: 12px; border-radius: 12px; font-size: 18px; }
+    li button { font-size: 15px; padding: 6px 14px; background: #f1f3f5; color: #333; margin-left: 6px; }
+    h2 { margin-top: 50px; }
+    .row { margin: 14px 0; }
+  </style>
+</head>
+<body>
+  <h1>🍲 今天吃什么？</h1>
+
+  <div class="row">
+    只想吃：
+    <select id="tagFilter" onchange="renderList()">
+      <option>全部</option>
+      <option>川菜</option>
+      <option>火锅</option>
+      <option>烧烤</option>
+      <option>日料</option>
+      <option>面食</option>
+      <option>麻辣烫</option>
+    </select>
+  </div>
+
+  <div id="result">点下面的按钮，让命运决定</div>
+  <button onclick="pick()">随机选一家</button>
+
+  <h2>📝 餐厅池子</h2>
+  <div class="row">
+    <input id="newName" placeholder="输入餐厅名字">
+    <select id="newTag">
+      <option>川菜</option>
+      <option>火锅</option>
+      <option>烧烤</option>
+      <option>日料</option>
+      <option>面食</option>
+      <option>麻辣烫</option>
+    </select>
+    <button onclick="add()">添加</button>
+  </div>
+  <ul id="list"></ul>
+
+  <script>
+    // 默认池子：只在第一次打开时用
+    const defaultRestaurants = [
+      { name: "老四川", tag: "川菜", up: 0, down: 0 },
+      { name: "海底捞", tag: "火锅", up: 0, down: 0 },
+      { name: "张亮麻辣烫", tag: "麻辣烫", up: 0, down: 0 },
+      { name: "兰州拉面", tag: "面食", up: 0, down: 0 },
+      { name: "寿司郎", tag: "日料", up: 0, down: 0 },
+      { name: "汉阳烧烤", tag: "烧烤", up: 0, down: 0 },
+      { name: "熊猫火锅", tag: "火锅", up: 0, down: 0 },
+    ];
+
+    // 页面一加载：先去小仓库里找有没有存过的
+    let restaurants;
+    const saved = localStorage.getItem("myRestaurants");
+    if (saved) {
+      restaurants = JSON.parse(saved); // 字符串 → 还原成数组
+    } else {
+      restaurants = defaultRestaurants;
+    }
+
+    // 把当前池子存进小仓库
+    function save() {
+      localStorage.setItem("myRestaurants", JSON.stringify(restaurants));
+    }
+
+    function renderList() {
+      const tag = document.getElementById("tagFilter").value;
+      const ul = document.getElementById("list");
+      ul.innerHTML = "";
+      for (let i = 0; i < restaurants.length; i++) {
+        const r = restaurants[i];
+        if (tag !== "全部" && r.tag !== tag) continue;
+        const li = document.createElement("li");
+        li.innerHTML = `${r.name}（${r.tag}）
+          <button onclick="vote(${i}, 1)">👍 ${r.up}</button>
+          <button onclick="vote(${i}, -1)">👎 ${r.down}</button>`;
+        ul.appendChild(li);
+      }
+    }
+
+    function vote(i, dir) {
+      if (dir === 1) restaurants[i].up++;
+      else restaurants[i].down++;
+      save();       // 数据变了，先存起来
+      renderList(); // 再重画界面
+    }
+
+    function add() {
+      const name = document.getElementById("newName").value.trim();
+      const tag = document.getElementById("newTag").value;
+      if (name === "") return;
+      restaurants.push({ name: name, tag: tag, up: 0, down: 0 });
+      document.getElementById("newName").value = "";
+      save();
+      renderList();
+    }
+
+    function pick() {
+      const tag = document.getElementById("tagFilter").value;
+      const pool = [];
+      for (const r of restaurants) {
+        if (tag === "全部" || r.tag === tag) pool.push(r);
+      }
+      if (pool.length === 0) {
+        document.getElementById("result").textContent = "这个菜系还没有餐厅，快去添加！";
+        return;
+      }
+      const index = Math.floor(Math.random() * pool.length);
+      document.getElementById("result").textContent = "就吃：" + pool[index].name + "！";
+    }
+
+    renderList();
+  </script>
+</body>
+</html>

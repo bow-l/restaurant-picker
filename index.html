@@ -32,7 +32,7 @@
 </p>
 
 <div id="result">点下面的按钮，让命运决定</div>
-<button onclick="pick()">🎲 随机选一家</button>
+<button id="pickBtn" onclick="pick()">🎲 随机选一家</button>
 
 <h2>📝 餐厅池子</h2>
 <input id="newName" placeholder="输入餐厅名">
@@ -133,7 +133,7 @@ function renderList() {
   }
 }
 
-// ========== 4. 转盘（跟以前一模一样） ==========
+// ========== 4. 转盘（老虎机动画版） ==========
 function pick() {
   const filter = document.getElementById("filter").value;
   const pool = [];
@@ -146,8 +146,26 @@ function pick() {
     document.getElementById("result").textContent = "这个分类还没有餐厅，快去加一家！";
     return;
   }
-  const winner = pool[Math.floor(Math.random() * pool.length)];
-  document.getElementById("result").textContent = "🎉 " + winner.name;
+
+  const btn = document.getElementById("pickBtn");
+  btn.disabled = true;  // 动画期间禁用按钮，防止连点
+
+  let ticks = 0;
+  const totalTicks = 20;  // 一共滚动 20 次，约 2 秒
+
+  const timer = setInterval(() => {
+    ticks++;
+    // 每次随机抓一家显示出来，形成滚动效果
+    const r = pool[Math.floor(Math.random() * pool.length)];
+    document.getElementById("result").textContent = "🎲 " + r.name;
+
+    if (ticks >= totalTicks) {
+      clearInterval(timer);  // 关掉闹钟
+      const winner = pool[Math.floor(Math.random() * pool.length)];
+      document.getElementById("result").textContent = "🎉 " + winner.name;
+      btn.disabled = false;  // 恢复按钮
+    }
+  }, 100);
 }
 
 // ========== 5. 实时同步 ==========
